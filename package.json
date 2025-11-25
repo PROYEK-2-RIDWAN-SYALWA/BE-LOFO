@@ -1,0 +1,29 @@
+{
+  "name": "be-lofo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+  "start": "node index.js",
+  "dev": "nodemon index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PROYEK-2-RIDWAN-SYALWA/BE-LOFO.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/PROYEK-2-RIDWAN-SYALWA/BE-LOFO/issues"
+  },
+  "homepage": "https://github.com/PROYEK-2-RIDWAN-SYALWA/BE-LOFO#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

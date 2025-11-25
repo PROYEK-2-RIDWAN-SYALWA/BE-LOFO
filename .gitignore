@@ -1,9 +1,14 @@
-# Dependencies
-.psci_modules
-.spago
-bower_components
-node_modules
+# Logs
+logs
+*.log
+npm-debug.log*
 
-# Generated files
-.psci
-output
+# Dependency directories
+node_modules/
+
+# Environment variables
+.env
+
+# System Files
+.DS_Store
+Thumbs.db
