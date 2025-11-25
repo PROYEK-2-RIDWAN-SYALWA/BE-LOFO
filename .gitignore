@@ -7,7 +7,7 @@ npm-debug.log*
 node_modules/
 
 # Environment variables
-.env
+# .env
 
 # System Files
 .DS_Store
