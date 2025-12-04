@@ -1,0 +1,102 @@
+const supabase = require('../config/supabaseClient');
+
+// Helper: Mapping Role String ke ID Integer
+const getRoleId = (roleName) => {
+  switch (roleName) {
+    case 'mahasiswa': return 1;
+    case 'dosen': return 2;
+    case 'satpam': return 3;
+    default: return 1; 
+  }
+};
+
+exports.register = async (req, res) => {
+  // Kita terima 'username' dan 'email' dari body
+  const { email, password, role, nama_lengkap, no_wa, username, specific_data } = req.body;
+
+  try {
+    // 1. Validasi Username (Cek apakah sudah dipakai)
+    const { data: existingUser } = await supabase
+      .from('akun_pengguna')
+      .select('username')
+      .eq('username', username)
+      .single();
+    
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username sudah digunakan, silakan pilih yang lain.' });
+    }
+
+    // 2. DAFTAR KE SUPABASE AUTH (Tetap pakai email & password)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (authError) throw authError;
+    if (!authData.user) throw new Error("Gagal membuat user auth");
+
+    const userId = authData.user.id;
+    const roleId = getRoleId(role);
+
+    // 3. SIMPAN KE TABEL UTAMA (akun_pengguna)
+    const { data: userData, error: userError } = await supabase
+      .from('akun_pengguna')
+      .insert([{
+        auth_id: userId,
+        id_role: roleId,
+        username: username, // <--- Simpan Username Manual
+        email: email,       // <--- Simpan Email juga (penting untuk login via username)
+        nama_lengkap,
+        no_wa,
+        status_akun: 'aktif'
+      }])
+      .select('id_pengguna')
+      .single();
+
+    if (userError) {
+      // Hapus user auth jika gagal simpan data profil (Rollback)
+      await supabase.auth.admin.deleteUser(userId); 
+      throw userError;
+    }
+
+    const idPengguna = userData.id_pengguna;
+
+    // 4. SIMPAN KE TABEL PROFIL SPESIFIK
+    let profileError = null;
+
+    if (role === 'mahasiswa') {
+      const { error } = await supabase.from('profil_mahasiswa').insert([{
+        id_user: idPengguna,
+        npm: specific_data.npm,
+        prodi: specific_data.prodi,
+        angkatan: specific_data.angkatan
+      }]);
+      profileError = error;
+    } 
+    else if (role === 'dosen') {
+      // UPDATE: Sekarang simpan PRODI, bukan Fakultas
+      const { error } = await supabase.from('profil_dosen').insert([{
+        id_user: idPengguna,
+        nidn: specific_data.nidn,
+        prodi: specific_data.prodi // <--- Kolom Baru
+      }]);
+      profileError = error;
+    } 
+    else if (role === 'satpam') {
+      const { error } = await supabase.from('profil_satpam').insert([{
+        id_user: idPengguna,
+        nomor_induk: specific_data.nomor_induk,
+        lokasi_jaga: specific_data.lokasi_jaga
+      }]);
+      profileError = error;
+    }
+
+    if (profileError) throw profileError;
+
+    res.status(201).json({ message: 'Registrasi berhasil!', user: authData.user });
+
+  } catch (error) {
+    console.error("Register Error:", error.message);
+    res.status(400).json({ error: error.message });
+  }
+};
