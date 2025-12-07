@@ -59,3 +59,33 @@ exports.getAllPosts = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.getMyPosts = async (req, res) => {
+  const { auth_id } = req.query; // Kita lempar ID dari frontend
+
+  try {
+    // 1. Cari ID Integer user dulu
+    const { data: userData, error: userError } = await supabase
+      .from('akun_pengguna')
+      .select('id_pengguna')
+      .eq('auth_id', auth_id)
+      .single();
+
+    if (userError || !userData) {
+      return res.status(404).json({ error: 'User tidak ditemukan' });
+    }
+
+    // 2. Ambil postingan berdasarkan ID Pelapor
+    const { data, error } = await supabase
+      .from('postingan_barang')
+      .select('*')
+      .eq('id_pelapor', userData.id_pengguna)
+      .order('tgl_postingan', { ascending: false });
+
+    if (error) throw error;
+    res.json(data);
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
