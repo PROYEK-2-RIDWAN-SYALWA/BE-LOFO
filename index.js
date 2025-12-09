@@ -1,7 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const postRoutes = require('./src/routes/postRoutes'); //
+const postRoutes = require('./src/routes/postRoutes');
+const masterRoutes = require('./src/routes/masterRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,3 +25,5 @@ app.listen(PORT, () => {
 const authRoutes = require('./src/routes/authRoutes');
 // ...
 app.use('/api/auth', authRoutes);
+
+app.use('/api/master', masterRoutes);
