@@ -70,20 +70,19 @@ exports.register = async (req, res) => {
       const { error } = await supabase.from('profil_mahasiswa').insert([{
         id_user: idPengguna,
         npm: specific_data.npm,
-        prodi: specific_data.prodi,
+        id_prodi: parseInt(specific_data.prodi), // UBAH DISINI: pastikan integer & nama kolom sesuai DB
         angkatan: specific_data.angkatan
       }]);
       profileError = error;
     } 
     else if (role === 'dosen') {
-      // UPDATE: Sekarang simpan PRODI, bukan Fakultas
       const { error } = await supabase.from('profil_dosen').insert([{
         id_user: idPengguna,
         nidn: specific_data.nidn,
-        prodi: specific_data.prodi // <--- Kolom Baru
+        id_prodi: parseInt(specific_data.prodi) // UBAH DISINI: pastikan integer
       }]);
       profileError = error;
-    } 
+    }
     else if (role === 'satpam') {
       const { error } = await supabase.from('profil_satpam').insert([{
         id_user: idPengguna,
