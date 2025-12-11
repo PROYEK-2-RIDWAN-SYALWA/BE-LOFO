@@ -1,7 +1,8 @@
 const supabase = require('../config/supabaseClient');
 
 exports.createPost = async (req, res) => {
-  const { auth_id, tipe_postingan, nama_barang, deskripsi, lokasi, foto_barang } = req.body;
+  // 1. TERIMA id_kategori DARI BODY
+  const { auth_id, tipe_postingan, nama_barang, deskripsi, lokasi, foto_barang, id_kategori, waktu_kejadian } = req.body;
 
   try {
     // 1. CARI ID PELAPOR DULU (Translasi UUID -> ID Integer)
@@ -21,19 +22,21 @@ exports.createPost = async (req, res) => {
       .insert([
         {
           id_pelapor: userData.id_pengguna,
-          tipe_postingan, // 'kehilangan' atau 'ditemukan'
+          id_kategori: parseInt(id_kategori), // Pastikan Integer
+          tipe_postingan, 
           nama_barang,
           deskripsi,
-          foto_barang: foto_barang || 'https://placehold.co/600x400?text=No+Image', // Placeholder jika kosong
+          foto_barang: foto_barang || 'https://placehold.co/600x400?text=No+Image',
           lokasi_terlapor: lokasi,
-          info_kontak_wa: userData.no_wa, // Otomatis ambil dari profil
-          status_postingan: 'aktif'
+          info_kontak_wa: userData.no_wa, 
+          status_postingan: 'aktif',
+          // Jika di DB ada kolom waktu khusus, masukkan. Jika tidak, simpan di deskripsi atau abaikan.
+          // tgl_postingan default now()
         }
       ])
       .select();
 
     if (error) throw error;
-
     res.status(201).json({ message: 'Postingan berhasil dibuat!', data });
 
   } catch (error) {
