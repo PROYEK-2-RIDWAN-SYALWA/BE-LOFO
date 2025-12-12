@@ -1,19 +1,23 @@
 const supabase = require('../config/supabaseClient');
 
 exports.createPost = async (req, res) => {
-  // 1. TERIMA id_kategori DARI BODY
-  const { auth_id, tipe_postingan, nama_barang, deskripsi, lokasi, foto_barang, id_kategori, waktu_kejadian } = req.body;
+  // [SECURITY FIX]
+  // HAPUS 'auth_id' dari req.body. Jangan pernah terima ID user dari inputan mentah!
+  const { tipe_postingan, nama_barang, deskripsi, lokasi, foto_barang, id_kategori, waktu_kejadian } = req.body;
+
+  // AMBIL ID DARI TOKEN (Hasil kerja Middleware)
+  const authIdFromToken = req.user.id; 
 
   try {
-    // 1. CARI ID PELAPOR DULU (Translasi UUID -> ID Integer)
+    // 1. CARI ID PENGGUNA BERDASARKAN AUTH ID YANG TERPERCAYA
     const { data: userData, error: userError } = await supabase
       .from('akun_pengguna')
       .select('id_pengguna, no_wa')
-      .eq('auth_id', auth_id)
+      .eq('auth_id', authIdFromToken) // Gunakan ID dari Token
       .single();
 
     if (userError || !userData) {
-      return res.status(404).json({ error: 'User profil tidak ditemukan. Lengkapi profil dulu!' });
+      return res.status(404).json({ error: 'User profil tidak ditemukan. Pastikan Anda sudah login.' });
     }
 
     // 2. INSERT POSTINGAN
@@ -22,7 +26,7 @@ exports.createPost = async (req, res) => {
       .insert([
         {
           id_pelapor: userData.id_pengguna,
-          id_kategori: parseInt(id_kategori), // Pastikan Integer
+          id_kategori: parseInt(id_kategori),
           tipe_postingan, 
           nama_barang,
           deskripsi,
@@ -30,8 +34,7 @@ exports.createPost = async (req, res) => {
           lokasi_terlapor: lokasi,
           info_kontak_wa: userData.no_wa, 
           status_postingan: 'aktif',
-          // Jika di DB ada kolom waktu khusus, masukkan. Jika tidak, simpan di deskripsi atau abaikan.
-          // tgl_postingan default now()
+          // waktu_kejadian: waktu_kejadian // Menambahkan field waktu_kejadian sesuai input form
         }
       ])
       .select();
@@ -40,13 +43,13 @@ exports.createPost = async (req, res) => {
     res.status(201).json({ message: 'Postingan berhasil dibuat!', data });
 
   } catch (error) {
+    console.error("Create Post Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
 exports.getAllPosts = async (req, res) => {
   try {
-    // Join dengan tabel akun_pengguna untuk dapat nama pelapor
     const { data, error } = await supabase
       .from('postingan_barang')
       .select(`
@@ -64,21 +67,22 @@ exports.getAllPosts = async (req, res) => {
 };
 
 exports.getMyPosts = async (req, res) => {
-  const { auth_id } = req.query; // Kita lempar ID dari frontend
+  // [SECURITY FIX] Gunakan ID dari Token, bukan dari req.query
+  const authIdFromToken = req.user.id; 
 
   try {
-    // 1. Cari ID Integer user dulu
+    // 1. Cari ID Integer user
     const { data: userData, error: userError } = await supabase
       .from('akun_pengguna')
       .select('id_pengguna')
-      .eq('auth_id', auth_id)
+      .eq('auth_id', authIdFromToken)
       .single();
 
     if (userError || !userData) {
       return res.status(404).json({ error: 'User tidak ditemukan' });
     }
 
-    // 2. Ambil postingan berdasarkan ID Pelapor
+    // 2. Ambil postingan
     const { data, error } = await supabase
       .from('postingan_barang')
       .select('*')
@@ -90,5 +94,28 @@ exports.getMyPosts = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getPostById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('postingan_barang')
+      .select(`
+        *,
+        akun_pengguna ( nama_lengkap, no_wa, username, master_roles(nama_role) ),
+        master_kategori ( nama_kategori )
+      `)
+      .eq('id_postingan', id)
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Postingan tidak ditemukan' });
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };

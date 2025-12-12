@@ -4,6 +4,7 @@ const cors = require('cors');
 const postRoutes = require('./src/routes/postRoutes');
 const masterRoutes = require('./src/routes/masterRoutes');
 const userRoutes = require('./src/routes/userRoutes');
+const adminRoutes = require('./src/routes/adminRoutes'); // <--- Tambah ini
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,3 +31,5 @@ app.use('/api/auth', authRoutes);
 app.use('/api/master', masterRoutes);
 
 app.use('/api/users', userRoutes);
+
+app.use('/api/admin', adminRoutes); // <--- Daftarkan endpoint admin

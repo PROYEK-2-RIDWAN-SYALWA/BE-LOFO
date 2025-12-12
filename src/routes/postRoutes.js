@@ -1,14 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const postController = require('../controllers/postController');
+const { verifyToken } = require('../middleware/authMiddleware');
 
-// POST /api/posts - Buat postingan baru
-router.post('/', postController.createPost);
+// POST /api/posts - Buat postingan baru (DILINDUNGI)
+// Artinya: Hanya user yang punya token valid yang bisa akses controller ini
+router.post('/', verifyToken, postController.createPost);
 
-// GET /api/posts - Ambil semua postingan
+// GET /api/posts - Ambil semua postingan (PUBLIK - Siapa saja boleh lihat)
 router.get('/', postController.getAllPosts);
 
-// GET /api/posts/history?auth_id=... - Ambil postingan user tertentu
-router.get('/history', postController.getMyPosts);
+// GET /api/posts/history - Ambil postingan user sendiri (DILINDUNGI)
+// Kita lindungi agar orang tidak bisa mengintip history orang lain
+router.get('/history', verifyToken, postController.getMyPosts);
+
+
+// GET /api/posts/:id - Ambil detail postingan berdasarkan ID (PUBLIK)
+router.get('/:id', verifyToken, postController.getPostById);
 
 module.exports = router;
