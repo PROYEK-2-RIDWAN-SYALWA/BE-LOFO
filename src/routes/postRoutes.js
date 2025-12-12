@@ -18,4 +18,7 @@ router.get('/history', verifyToken, postController.getMyPosts);
 // GET /api/posts/:id - Ambil detail postingan berdasarkan ID (PUBLIK)
 router.get('/:id', verifyToken, postController.getPostById);
 
+// PUT /api/posts/:id/status - Update status postingan (DILINDUNGI)
+router.put('/:id/status', verifyToken, postController.updatePostStatus);
+
 module.exports = router;

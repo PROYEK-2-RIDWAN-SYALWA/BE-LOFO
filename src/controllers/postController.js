@@ -97,6 +97,7 @@ exports.getMyPosts = async (req, res) => {
   }
 };
 
+// [BARU] Ambil Detail 1 Postingan berdasarkan ID
 exports.getPostById = async (req, res) => {
   const { id } = req.params;
 
@@ -105,7 +106,7 @@ exports.getPostById = async (req, res) => {
       .from('postingan_barang')
       .select(`
         *,
-        akun_pengguna ( nama_lengkap, no_wa, username, master_roles(nama_role) ),
+        akun_pengguna ( auth_id, nama_lengkap, no_wa, username, master_roles(nama_role) ),
         master_kategori ( nama_kategori )
       `)
       .eq('id_postingan', id)
@@ -115,6 +116,43 @@ exports.getPostById = async (req, res) => {
     if (!data) return res.status(404).json({ error: 'Postingan tidak ditemukan' });
 
     res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// [BARU] Update Status Postingan (Selesai/Aktif)
+exports.updatePostStatus = async (req, res) => {
+  const { id } = req.params; // ID Postingan
+  const { status } = req.body; // 'selesai' atau 'aktif'
+  const authId = req.user.id; // Dari Token
+
+  try {
+    // 1. Cek apakah yang request adalah pemilik postingan?
+    // Kita cari id_pelapor dari postingan, lalu cocokan dengan user yg login
+    const { data: post } = await supabase
+      .from('postingan_barang')
+      .select('id_pelapor, akun_pengguna!inner(auth_id)')
+      .eq('id_postingan', id)
+      .single();
+
+    if (!post) return res.status(404).json({ error: 'Postingan tidak ditemukan' });
+
+    // Validasi Kepemilikan (Hanya pemilik yang boleh ubah status)
+    if (post.akun_pengguna.auth_id !== authId) {
+      return res.status(403).json({ error: 'Anda tidak berhak mengubah status postingan ini.' });
+    }
+
+    // 2. Update Status
+    const { data, error } = await supabase
+      .from('postingan_barang')
+      .update({ status_postingan: status })
+      .eq('id_postingan', id)
+      .select();
+
+    if (error) throw error;
+    res.json({ message: 'Status berhasil diperbarui', data });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
