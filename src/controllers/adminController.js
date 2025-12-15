@@ -1,4 +1,5 @@
 const supabase = require('../config/supabaseClient');
+const { createNotificationInternal } = require('./notificationController');
 
 
 // 1. LIHAT SEMUA USER
@@ -19,26 +20,48 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// 2. VERIFIKASI USER (Ubah status jadi 'verified')
+// 2. VERIFIKASI USER (REVISI FIX)
 exports.verifyUser = async (req, res) => {
-  const { id_pengguna } = req.params;
+  // [PERBAIKAN UTAMA] Gunakan 'id_pengguna', JANGAN 'id'
+  const { id_pengguna } = req.params; 
 
   try {
-    const { data, error } = await supabase
+    // Validasi input
+    if (!id_pengguna || id_pengguna === 'undefined') {
+        return res.status(400).json({ error: "ID Pengguna tidak valid." });
+    }
+
+    // 1. Update Status
+    const { data: userUpdated, error } = await supabase
       .from('akun_pengguna')
       .update({ status_akun: 'verified' })
-      .eq('id_pengguna', id_pengguna)
-      .select();
+      .eq('id_pengguna', id_pengguna) // Pastikan variabel ini sama dengan yang di atas
+      .select()
+      .single();
 
     if (error) throw error;
-    res.json({ message: 'User berhasil diverifikasi!', data });
+
+    // 2. Kirim Notifikasi (Jika user ditemukan & punya auth_id)
+    if (userUpdated && userUpdated.auth_id) {
+        if (typeof createNotificationInternal === 'function') {
+            await createNotificationInternal(
+                userUpdated.auth_id,
+                'Akun Terverifikasi! 🎉',
+                'Selamat! Akun Anda telah diverifikasi oleh Admin. Sekarang Anda bisa memposting laporan.',
+                'success'
+            );
+        }
+    }
+
+    res.json({ message: 'User berhasil diverifikasi dan dinotifikasi', data: userUpdated });
+
   } catch (err) {
+    console.error("Verify Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 };
 
 // 3. HAPUS POSTINGAN (Moderasi Konten)
-// 3. HAPUS POSTINGAN (VERSI ULTIMATE DEBUG)
 exports.deletePost = async (req, res) => {
   const { id_postingan } = req.params;
   const idInt = parseInt(id_postingan); // 1. Paksa jadi Integer agar akurat
