@@ -21,4 +21,10 @@ router.get('/:id', verifyToken, postController.getPostById);
 // PUT /api/posts/:id/status - Update status postingan (DILINDUNGI)
 router.put('/:id/status', verifyToken, postController.updatePostStatus);
 
+// UPDATE POSTINGAN SENDIRI
+router.put('/:id', verifyToken, postController.updateMyPost);
+
+// HAPUS POSTINGAN SENDIRI
+router.delete('/:id', verifyToken, postController.deleteMyPost);
+
 module.exports = router;

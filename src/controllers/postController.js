@@ -186,3 +186,88 @@ exports.updatePostStatus = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// USER UPDATE POSTINGAN SENDIRI
+exports.updateMyPost = async (req, res) => {
+  const { id } = req.params; // ID Postingan
+  const { nama_barang, deskripsi, lokasi, id_kategori, tipe_postingan, foto_barang } = req.body;
+  const authId = req.user.id; // Dari Token
+
+  try {
+    // 1. Cek Kepemilikan (Apakah postingan ini milik user yg login?)
+    const { data: post } = await supabase
+      .from('postingan_barang')
+      .select('id_postingan, akun_pengguna!inner(auth_id)')
+      .eq('id_postingan', id)
+      .single();
+
+    if (!post) return res.status(404).json({ error: 'Postingan tidak ditemukan' });
+    
+    // Validasi Pemilik
+    if (post.akun_pengguna.auth_id !== authId) {
+      return res.status(403).json({ error: 'Anda tidak berhak mengedit postingan ini.' });
+    }
+
+    // 2. Lakukan Update
+    const { data, error } = await supabase
+      .from('postingan_barang')
+      .update({
+        nama_barang,
+        deskripsi,
+        lokasi_terlapor: lokasi,
+        id_kategori: parseInt(id_kategori),
+        tipe_postingan,
+        foto_barang // Opsional: jika user ganti foto
+      })
+      .eq('id_postingan', id)
+      .select();
+
+    if (error) throw error;
+    res.json({ message: 'Postingan berhasil diupdate', data });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// [BARU] USER HAPUS POSTINGAN SENDIRI
+exports.deleteMyPost = async (req, res) => {
+  const { id } = req.params;
+  const authId = req.user.id;
+
+  try {
+    // 1. Cek Kepemilikan
+    const { data: post } = await supabase
+      .from('postingan_barang')
+      .select('id_postingan, foto_barang, akun_pengguna!inner(auth_id)')
+      .eq('id_postingan', id)
+      .single();
+
+    if (!post) return res.status(404).json({ error: 'Postingan tidak ditemukan' });
+
+    if (post.akun_pengguna.auth_id !== authId) {
+      return res.status(403).json({ error: 'Anda tidak berhak menghapus postingan ini.' });
+    }
+
+    // 2. Hapus Gambar dari Storage (Bersih-bersih)
+    if (post.foto_barang && post.foto_barang.includes('lofo-images')) {
+      const path = post.foto_barang.split('/lofo-images/')[1];
+      if (path) await supabase.storage.from('lofo-images').remove([path]);
+    }
+
+    // 3. Hapus Data Relasi (Notifikasi & Klaim)
+    await Promise.all([
+      supabase.from('notifikasi').delete().eq('id_postingan', id),
+      supabase.from('data_klaim').delete().eq('id_postingan', id)
+    ]);
+
+    // 4. Hapus Postingan Utama
+    const { error } = await supabase.from('postingan_barang').delete().eq('id_postingan', id);
+    
+    if (error) throw error;
+    res.json({ message: 'Postingan berhasil dihapus' });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
