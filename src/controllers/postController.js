@@ -49,17 +49,46 @@ exports.createPost = async (req, res) => {
 };
 
 exports.getAllPosts = async (req, res) => {
+  // Terima param 'category' (berupa ID atau nama, kita pakai ID biar akurat)
+  const { page = 1, limit = 10, search = '', category = '' } = req.query;
+  
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('postingan_barang')
       .select(`
         *,
-        akun_pengguna ( nama_lengkap, username ) 
-      `)
-      .order('tgl_postingan', { ascending: false });
+        akun_pengguna ( nama_lengkap, username ),
+        master_kategori ( id_kategori, nama_kategori )
+      `, { count: 'exact' }); 
+
+    // 1. Search Text
+    if (search) {
+      query = query.or(`nama_barang.ilike.%${search}%,deskripsi.ilike.%${search}%`);
+    }
+
+    // 2. Filter Category (BARU)
+    if (category && category !== 'all') {
+      query = query.eq('id_kategori', category);
+    }
+
+    const { data, error, count } = await query
+      .order('tgl_postingan', { ascending: false })
+      .range(from, to);
 
     if (error) throw error;
-    res.json(data);
+
+    res.json({
+      data,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total_items: count,
+        total_pages: Math.ceil(count / limit)
+      }
+    });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
