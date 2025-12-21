@@ -2,16 +2,24 @@ const supabase = require('../config/supabaseClient');
 const { createNotificationInternal } = require('./notificationController');
 
 
-// 1. LIHAT SEMUA USER
+// 1. LIHAT SEMUA USER (Dengan Filter Status)
 exports.getAllUsers = async (req, res) => {
+  const { status = 'all' } = req.query;
+  
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('akun_pengguna')
       .select(`
         *,
         master_roles ( nama_role )
-      `)
-      .order('created_at', { ascending: false });
+      `);
+
+    // Filter by status jika bukan 'all'
+    if (status !== 'all') {
+      query = query.eq('status_akun', status);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) throw error;
     res.json(data);
@@ -57,6 +65,104 @@ exports.verifyUser = async (req, res) => {
 
   } catch (err) {
     console.error("Verify Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// 2.5 TOLAK USER (BARU)
+exports.rejectUser = async (req, res) => {
+  const { id_pengguna } = req.params;
+  const { alasan } = req.body;
+
+  try {
+    if (!id_pengguna || id_pengguna === 'undefined') {
+      return res.status(400).json({ error: "ID Pengguna tidak valid." });
+    }
+
+    // Update Status menjadi rejected
+    const { data: userUpdated, error } = await supabase
+      .from('akun_pengguna')
+      .update({ 
+        status_akun: 'rejected'
+        // Bisa tambah kolom alasan_penolakan jika ada di database
+      })
+      .eq('id_pengguna', id_pengguna)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Kirim Notifikasi
+    if (userUpdated && userUpdated.auth_id) {
+      await createNotificationInternal(
+        userUpdated.auth_id,
+        'Akun Tidak Disetujui ❌',
+        `Maaf, akun Anda tidak disetujui oleh Admin.${alasan ? ` Alasan: ${alasan}` : ''} Silakan hubungi admin untuk informasi lebih lanjut.`,
+        'error'
+      );
+    }
+
+    res.json({ message: 'User berhasil ditolak', data: userUpdated });
+
+  } catch (err) {
+    console.error("Reject User Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// 2.6 DETAIL USER DENGAN PROFIL LENGKAP (BARU)
+exports.getUserDetail = async (req, res) => {
+  const { id_pengguna } = req.params;
+
+  try {
+    // Ambil data user utama
+    const { data: user, error: userError } = await supabase
+      .from('akun_pengguna')
+      .select(`
+        *,
+        master_roles ( nama_role )
+      `)
+      .eq('id_pengguna', id_pengguna)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ error: 'User tidak ditemukan' });
+    }
+
+    // Ambil profil spesifik berdasarkan role
+    let specificProfile = null;
+    const roleName = user.master_roles?.nama_role || '';
+
+    if (roleName === 'mahasiswa') {
+      const { data } = await supabase
+        .from('profil_mahasiswa')
+        .select('*, master_prodi(nama_prodi)')
+        .eq('id_pengguna', id_pengguna)
+        .single();
+      specificProfile = data;
+    } else if (roleName === 'dosen') {
+      const { data } = await supabase
+        .from('profil_dosen')
+        .select('*, master_prodi(nama_prodi)')
+        .eq('id_pengguna', id_pengguna)
+        .single();
+      specificProfile = data;
+    } else if (roleName === 'satpam') {
+      const { data } = await supabase
+        .from('profil_satpam')
+        .select('*')
+        .eq('id_pengguna', id_pengguna)
+        .single();
+      specificProfile = data;
+    }
+
+    res.json({
+      ...user,
+      specific: specificProfile
+    });
+
+  } catch (err) {
+    console.error("Get User Detail Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 };
@@ -160,12 +266,19 @@ exports.getStats = async (req, res) => {
       .select('*', { count: 'exact', head: true })
       .or('tipe_postingan.eq.ditemukan,tipe_postingan.eq.Ditemukan'); // Handle besar kecil huruf jaga-jaga
 
+    // e. [BARU] Hitung Postingan Pending Admin
+    const { count: pendingCount } = await supabase
+      .from('postingan_barang')
+      .select('*', { count: 'exact', head: true })
+      .eq('status_postingan', 'pending_admin');
+
     // Kirim response lengkap
     res.json({ 
       total_users: userCount || 0, 
       total_posts: postCount || 0,
       lost_items: lostCount || 0,
-      found_items: foundCount || 0  // <-- INI YANG TADI HILANG
+      found_items: foundCount || 0,
+      pending_posts: pendingCount || 0  // <-- BARU untuk badge
     });
 
   } catch (err) {
@@ -173,3 +286,158 @@ exports.getStats = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ===================================================================
+// 5. GET ALL POSTS FOR ADMIN (Dengan Filter Status)
+// ===================================================================
+exports.getAllPostsAdmin = async (req, res) => {
+  const { status = 'all', page = 1, limit = 20 } = req.query;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  try {
+    let query = supabase
+      .from('postingan_barang')
+      .select(`
+        *,
+        akun_pengguna ( nama_lengkap, username, no_wa ),
+        master_kategori ( nama_kategori )
+      `, { count: 'exact' });
+
+    // Filter by status jika bukan 'all'
+    if (status !== 'all') {
+      query = query.eq('status_postingan', status);
+    }
+
+    const { data, error, count } = await query
+      .order('tgl_postingan', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+
+    res.json({
+      data,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total_items: count,
+        total_pages: Math.ceil(count / limit)
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ===================================================================
+// 6. APPROVE POST - Admin menyetujui postingan
+// ===================================================================
+exports.approvePost = async (req, res) => {
+  const { id_postingan } = req.params;
+  const idInt = parseInt(id_postingan);
+
+  try {
+    // 1. Cek postingan ada dan statusnya pending
+    const { data: post, error: fetchError } = await supabase
+      .from('postingan_barang')
+      .select('id_postingan, status_postingan, nama_barang, akun_pengguna!inner(auth_id, nama_lengkap)')
+      .eq('id_postingan', idInt)
+      .single();
+
+    if (fetchError || !post) {
+      return res.status(404).json({ error: 'Postingan tidak ditemukan' });
+    }
+
+    if (post.status_postingan !== 'pending_admin') {
+      return res.status(400).json({ 
+        error: `Postingan tidak dalam status pending. Status saat ini: ${post.status_postingan}` 
+      });
+    }
+
+    // 2. Update status menjadi 'aktif'
+    const { error: updateError } = await supabase
+      .from('postingan_barang')
+      .update({ status_postingan: 'aktif' })
+      .eq('id_postingan', idInt);
+
+    if (updateError) throw updateError;
+
+    // 3. Kirim notifikasi ke user
+    await createNotificationInternal(
+      post.akun_pengguna.auth_id,
+      'Postingan Disetujui! ✅',
+      `Postingan "${post.nama_barang}" telah diverifikasi dan sekarang tampil di website.`,
+      'success',
+      `/post/${idInt}`
+    );
+
+    res.json({ message: `Postingan "${post.nama_barang}" berhasil disetujui` });
+
+  } catch (err) {
+    console.error('Approve Post Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ===================================================================
+// 7. REJECT POST - Admin menolak postingan
+// ===================================================================
+exports.rejectPost = async (req, res) => {
+  const { id_postingan } = req.params;
+  const { alasan } = req.body;
+  const idInt = parseInt(id_postingan);
+
+  // Validasi alasan
+  if (!alasan || alasan.trim().length < 10) {
+    return res.status(400).json({ 
+      error: 'Alasan penolakan wajib diisi (minimal 10 karakter)' 
+    });
+  }
+
+  try {
+    // 1. Cek postingan ada dan statusnya pending
+    const { data: post, error: fetchError } = await supabase
+      .from('postingan_barang')
+      .select('id_postingan, status_postingan, nama_barang, akun_pengguna!inner(auth_id)')
+      .eq('id_postingan', idInt)
+      .single();
+
+    if (fetchError || !post) {
+      return res.status(404).json({ error: 'Postingan tidak ditemukan' });
+    }
+
+    if (post.status_postingan !== 'pending_admin') {
+      return res.status(400).json({ 
+        error: `Postingan tidak dalam status pending. Status saat ini: ${post.status_postingan}` 
+      });
+    }
+
+    // 2. Update status menjadi 'ditolak_admin'
+    const { error: updateError } = await supabase
+      .from('postingan_barang')
+      .update({ 
+        status_postingan: 'ditolak_admin',
+        alasan_penolakan: alasan 
+      })
+      .eq('id_postingan', idInt);
+
+    if (updateError) throw updateError;
+
+    // 3. Kirim notifikasi ke user
+    await createNotificationInternal(
+      post.akun_pengguna.auth_id,
+      'Postingan Ditolak ❌',
+      `Postingan "${post.nama_barang}" tidak disetujui. Alasan: ${alasan}`,
+      'error',
+      null
+    );
+
+    res.json({ message: `Postingan ditolak dengan alasan: ${alasan}` });
+
+  } catch (err) {
+    console.error('Reject Post Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+

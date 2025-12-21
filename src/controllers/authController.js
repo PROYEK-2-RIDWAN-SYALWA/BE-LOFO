@@ -50,7 +50,7 @@ exports.register = async (req, res) => {
         email: email,       // <--- Simpan Email juga (penting untuk login via username)
         nama_lengkap,
         no_wa,
-        status_akun: 'aktif'
+        status_akun: 'pending' // User baru menunggu verifikasi admin
       }])
       .select('id_pengguna')
       .single();

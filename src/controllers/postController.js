@@ -6,13 +6,13 @@ exports.createPost = async (req, res) => {
   const { tipe_postingan, nama_barang, deskripsi, lokasi, foto_barang, id_kategori, waktu_kejadian } = req.body;
 
   // AMBIL ID DARI TOKEN (Hasil kerja Middleware)
-  const authIdFromToken = req.user.id; 
+  const authIdFromToken = req.user.id;
 
   try {
     // 1. CARI ID PENGGUNA BERDASARKAN AUTH ID YANG TERPERCAYA
     const { data: userData, error: userError } = await supabase
       .from('akun_pengguna')
-      .select('id_pengguna, no_wa')
+      .select('id_pengguna, no_wa, status_akun')
       .eq('auth_id', authIdFromToken) // Gunakan ID dari Token
       .single();
 
@@ -20,20 +20,27 @@ exports.createPost = async (req, res) => {
       return res.status(404).json({ error: 'User profil tidak ditemukan. Pastikan Anda sudah login.' });
     }
 
-    // 2. INSERT POSTINGAN
+    // 2. [BARU] CEK STATUS AKUN - Block user yang rejected
+    if (userData.status_akun === 'rejected') {
+      return res.status(403).json({
+        error: 'Akun Anda telah ditolak oleh admin. Silakan hubungi admin untuk informasi lebih lanjut.'
+      });
+    }
+
+    // 3. INSERT POSTINGAN
     const { data, error } = await supabase
       .from('postingan_barang')
       .insert([
         {
           id_pelapor: userData.id_pengguna,
           id_kategori: parseInt(id_kategori),
-          tipe_postingan, 
+          tipe_postingan,
           nama_barang,
           deskripsi,
           foto_barang: foto_barang || 'https://placehold.co/600x400?text=No+Image',
           lokasi_terlapor: lokasi,
-          info_kontak_wa: userData.no_wa, 
-          status_postingan: 'aktif',
+          info_kontak_wa: userData.no_wa,
+          status_postingan: 'pending_admin', // Harus diverifikasi admin dulu
           // waktu_kejadian: waktu_kejadian // Menambahkan field waktu_kejadian sesuai input form
         }
       ])
@@ -51,7 +58,7 @@ exports.createPost = async (req, res) => {
 exports.getAllPosts = async (req, res) => {
   // Terima param 'category' (berupa ID atau nama, kita pakai ID biar akurat)
   const { page = 1, limit = 10, search = '', category = '' } = req.query;
-  
+
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
@@ -60,9 +67,9 @@ exports.getAllPosts = async (req, res) => {
       .from('postingan_barang')
       .select(`
         *,
-        akun_pengguna ( nama_lengkap, username ),
+        akun_pengguna ( nama_lengkap, username, status_akun, foto_profil ),
         master_kategori ( id_kategori, nama_kategori )
-      `, { count: 'exact' }); 
+      `, { count: 'exact' });
 
     // 1. Search Text
     if (search) {
@@ -73,6 +80,9 @@ exports.getAllPosts = async (req, res) => {
     if (category && category !== 'all') {
       query = query.eq('id_kategori', category);
     }
+
+    // 3. HANYA tampilkan postingan dengan status 'aktif' ke publik
+    query = query.eq('status_postingan', 'aktif');
 
     const { data, error, count } = await query
       .order('tgl_postingan', { ascending: false })
@@ -97,7 +107,7 @@ exports.getAllPosts = async (req, res) => {
 
 exports.getMyPosts = async (req, res) => {
   // [SECURITY FIX] Gunakan ID dari Token, bukan dari req.query
-  const authIdFromToken = req.user.id; 
+  const authIdFromToken = req.user.id;
 
   try {
     // 1. Cari ID Integer user
@@ -135,7 +145,7 @@ exports.getPostById = async (req, res) => {
       .from('postingan_barang')
       .select(`
         *,
-        akun_pengguna ( auth_id, nama_lengkap, no_wa, username, master_roles(nama_role) ),
+        akun_pengguna ( auth_id, nama_lengkap, no_wa, username, status_akun, foto_profil, master_roles(nama_role) ),
         master_kategori ( nama_kategori )
       `)
       .eq('id_postingan', id)
@@ -202,7 +212,7 @@ exports.updateMyPost = async (req, res) => {
       .single();
 
     if (!post) return res.status(404).json({ error: 'Postingan tidak ditemukan' });
-    
+
     // Validasi Pemilik
     if (post.akun_pengguna.auth_id !== authId) {
       return res.status(403).json({ error: 'Anda tidak berhak mengedit postingan ini.' });
@@ -263,7 +273,7 @@ exports.deleteMyPost = async (req, res) => {
 
     // 4. Hapus Postingan Utama
     const { error } = await supabase.from('postingan_barang').delete().eq('id_postingan', id);
-    
+
     if (error) throw error;
     res.json({ message: 'Postingan berhasil dihapus' });
 
