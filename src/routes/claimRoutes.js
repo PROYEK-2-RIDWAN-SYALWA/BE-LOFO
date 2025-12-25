@@ -13,6 +13,9 @@ router.post('/', verifyToken, claimController.createClaim);
 // GET /api/claims/my-claims - Lihat klaim yang saya ajukan
 router.get('/my-claims', verifyToken, claimController.getMyClaims);
 
+// GET /api/claims/my-successful - Lihat riwayat klaim berhasil
+router.get('/my-successful', verifyToken, claimController.getMySuccessfulClaims);
+
 // GET /api/claims/incoming - Lihat klaim masuk untuk barang yang saya temukan
 router.get('/incoming', verifyToken, claimController.getIncomingClaims);
 

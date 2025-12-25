@@ -124,7 +124,11 @@ exports.getMyPosts = async (req, res) => {
     // 2. Ambil postingan
     const { data, error } = await supabase
       .from('postingan_barang')
-      .select('*')
+      .select(`
+        *,
+        akun_pengguna ( nama_lengkap, username, status_akun, foto_profil ),
+        master_kategori ( id_kategori, nama_kategori )
+      `)
       .eq('id_pelapor', userData.id_pengguna)
       .order('tgl_postingan', { ascending: false });
 

@@ -407,3 +407,51 @@ exports.getClaimByPostId = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/**
+ * 7. GET MY SUCCESSFUL CLAIMS - Riwayat barang yang berhasil diklaim
+ */
+exports.getMySuccessfulClaims = async (req, res) => {
+  const authId = req.user.id;
+
+  try {
+    // Dapatkan id_pengguna
+    const { data: userData } = await supabase
+      .from('akun_pengguna')
+      .select('id_pengguna')
+      .eq('auth_id', authId)
+      .single();
+
+    if (!userData) {
+      return res.status(404).json({ error: 'User tidak ditemukan' });
+    }
+
+    const { data, error } = await supabase
+      .from('data_klaim')
+      .select(`
+        *,
+        postingan_barang!inner (
+          id_postingan,
+          nama_barang,
+          foto_barang,
+          tgl_postingan,
+          status_postingan,
+          akun_pengguna!inner ( 
+            nama_lengkap, 
+            status_akun,
+            no_wa
+          )
+        )
+      `)
+      .eq('id_pemilik', userData.id_pengguna)
+      .eq('tindakan_validasi', 'disetujui')
+      .eq('postingan_barang.status_postingan', 'selesai')
+      .order('tgl_validasi', { ascending: false });
+
+    if (error) throw error;
+    res.json(data);
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
