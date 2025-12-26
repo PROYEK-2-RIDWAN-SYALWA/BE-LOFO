@@ -1,4 +1,4 @@
-const supabase = require('../config/supabaseClient');
+const { supabase } = require('../config/supabaseClient');
 
 // ===================================================================
 // PRODI
@@ -22,7 +22,7 @@ exports.getAllProdi = async (req, res) => {
 
 exports.createProdi = async (req, res) => {
   const { nama_prodi } = req.body;
-  
+
   if (!nama_prodi || nama_prodi.trim().length < 3) {
     return res.status(400).json({ error: 'Nama prodi minimal 3 karakter' });
   }

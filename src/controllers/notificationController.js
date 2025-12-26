@@ -1,5 +1,6 @@
 // PERBAIKAN: Ubah path ke '../config/supabaseClient' dan hapus kurung kurawal {}
-const supabase = require('../config/supabaseClient');
+// PERBAIKAN: Ubah path ke '../config/supabaseClient' dan hapus kurung kurawal {}
+const { supabase, supabaseAdmin } = require('../config/supabaseClient');
 
 // 1. Ambil Notifikasi Milik User yang Login
 exports.getMyNotifications = async (req, res) => {
@@ -44,14 +45,23 @@ exports.markAsRead = async (req, res) => {
 // [INTERNAL FUNCTION] Helper untuk bikin notifikasi dari Controller lain
 exports.createNotificationInternal = async (targetAuthId, judul, pesan, tipe = 'info', link = null) => {
   try {
-    await supabase.from('notifikasi').insert({
+    console.log(`🔔 [Notif] Mengirim ke: ${targetAuthId} | Judul: ${judul}`);
+
+    const { data, error } = await supabaseAdmin.from('notifikasi').insert({
       auth_id: targetAuthId,
       judul,
       pesan,
       tipe,
       link_terkait: link
-    });
+    }).select();
+
+    if (error) {
+      console.error("❌ [Notif] Gagal Insert DB:", error.message);
+      throw error;
+    }
+    console.log("✅ [Notif] Berhasil disimpan ke DB:", data);
+
   } catch (err) {
-    console.error("Gagal kirim notifikasi internal:", err);
+    console.error("❌ [Notif] Error Exception:", err);
   }
 };

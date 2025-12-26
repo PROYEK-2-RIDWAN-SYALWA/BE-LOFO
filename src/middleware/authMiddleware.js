@@ -1,5 +1,5 @@
 // File: src/middleware/authMiddleware.js
-const supabase = require('../config/supabaseClient');
+const { supabase } = require('../config/supabaseClient');
 
 const verifyToken = async (req, res, next) => {
   try {
@@ -15,7 +15,7 @@ const verifyToken = async (req, res, next) => {
     // --- MODIFIKASI MULAI ---
     if (error) {
       // Ini akan mencetak alasan penolakan di Terminal VS Code Anda (bukan di Postman)
-      console.log("❌ GAGAL VERIFIKASI TOKEN:", error.message); 
+      console.log("❌ GAGAL VERIFIKASI TOKEN:", error.message);
       return res.status(401).json({ error: `Token Ditolak: ${error.message}` });
     }
     // --- MODIFIKASI SELESAI ---

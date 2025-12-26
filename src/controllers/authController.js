@@ -1,4 +1,4 @@
-const supabase = require('../config/supabaseClient');
+const { supabase } = require('../config/supabaseClient');
 
 // ... (Biarkan fungsi helper getRoleId dan exports.register tetap ada di atas) ...
 // Helper: Mapping Role String ke ID Integer (Biarkan kode lama)
@@ -7,14 +7,14 @@ const getRoleId = (roleName) => {
     case 'mahasiswa': return 1;
     case 'dosen': return 2;
     case 'satpam': return 3;
-    default: return 1; 
+    default: return 1;
   }
 };
 
 exports.register = async (req, res) => {
   // ... (Biarkan kode register Anda yang lama disini, jangan dihapus) ...
   // Kita fokus menambahkan fungsi login di bawah ini
-    const { email, password, role, nama_lengkap, no_wa, username, specific_data } = req.body;
+  const { email, password, role, nama_lengkap, no_wa, username, specific_data } = req.body;
 
   try {
     // 1. Validasi Username (Cek apakah sudah dipakai)
@@ -23,7 +23,7 @@ exports.register = async (req, res) => {
       .select('username')
       .eq('username', username)
       .single();
-    
+
     if (existingUser) {
       return res.status(400).json({ error: 'Username sudah digunakan, silakan pilih yang lain.' });
     }
@@ -57,7 +57,7 @@ exports.register = async (req, res) => {
 
     if (userError) {
       // Hapus user auth jika gagal simpan data profil (Rollback)
-      await supabase.auth.admin.deleteUser(userId); 
+      await supabase.auth.admin.deleteUser(userId);
       throw userError;
     }
 
@@ -74,7 +74,7 @@ exports.register = async (req, res) => {
         angkatan: specific_data.angkatan
       }]);
       profileError = error;
-    } 
+    }
     else if (role === 'dosen') {
       const { error } = await supabase.from('profil_dosen').insert([{
         id_user: idPengguna,

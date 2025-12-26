@@ -1,11 +1,11 @@
-const supabase = require('../config/supabaseClient');
+const { supabase } = require('../config/supabaseClient');
 const { createNotificationInternal } = require('./notificationController');
 
 
 // 1. LIHAT SEMUA USER (Dengan Filter Status)
 exports.getAllUsers = async (req, res) => {
   const { status = 'all' } = req.query;
-  
+
   try {
     let query = supabase
       .from('akun_pengguna')
@@ -31,12 +31,12 @@ exports.getAllUsers = async (req, res) => {
 // 2. VERIFIKASI USER (REVISI FIX)
 exports.verifyUser = async (req, res) => {
   // [PERBAIKAN UTAMA] Gunakan 'id_pengguna', JANGAN 'id'
-  const { id_pengguna } = req.params; 
+  const { id_pengguna } = req.params;
 
   try {
     // Validasi input
     if (!id_pengguna || id_pengguna === 'undefined') {
-        return res.status(400).json({ error: "ID Pengguna tidak valid." });
+      return res.status(400).json({ error: "ID Pengguna tidak valid." });
     }
 
     // 1. Update Status
@@ -51,14 +51,14 @@ exports.verifyUser = async (req, res) => {
 
     // 2. Kirim Notifikasi (Jika user ditemukan & punya auth_id)
     if (userUpdated && userUpdated.auth_id) {
-        if (typeof createNotificationInternal === 'function') {
-            await createNotificationInternal(
-                userUpdated.auth_id,
-                'Akun Terverifikasi! 🎉',
-                'Selamat! Akun Anda telah diverifikasi oleh Admin. Sekarang Anda bisa memposting laporan.',
-                'success'
-            );
-        }
+      if (typeof createNotificationInternal === 'function') {
+        await createNotificationInternal(
+          userUpdated.auth_id,
+          'Akun Terverifikasi! 🎉',
+          'Selamat! Akun Anda telah diverifikasi oleh Admin. Sekarang Anda bisa memposting laporan.',
+          'success'
+        );
+      }
     }
 
     res.json({ message: 'User berhasil diverifikasi dan dinotifikasi', data: userUpdated });
@@ -82,7 +82,7 @@ exports.rejectUser = async (req, res) => {
     // Update Status menjadi rejected
     const { data: userUpdated, error } = await supabase
       .from('akun_pengguna')
-      .update({ 
+      .update({
         status_akun: 'rejected'
         // Bisa tambah kolom alasan_penolakan jika ada di database
       })
@@ -183,14 +183,14 @@ exports.deletePost = async (req, res) => {
       .maybeSingle(); // Pakai maybeSingle agar tidak error jika null
 
     if (fetchError) {
-        console.error("[DELETE] Error saat cek data:", fetchError.message);
-        return res.status(500).json({ error: "Database error saat cek data." });
+      console.error("[DELETE] Error saat cek data:", fetchError.message);
+      return res.status(500).json({ error: "Database error saat cek data." });
     }
-    
+
     if (!post) {
-        console.warn("[DELETE] Data tidak ditemukan di database (Ghost Data).");
-        // Kita kirim sukses saja supaya UI frontend bisa refresh dan menghilangkan data hantu ini
-        return res.json({ message: 'Data sudah tidak ada, sinkronisasi selesai.' });
+      console.warn("[DELETE] Data tidak ditemukan di database (Ghost Data).");
+      // Kita kirim sukses saja supaya UI frontend bisa refresh dan menghilangkan data hantu ini
+      return res.json({ message: 'Data sudah tidak ada, sinkronisasi selesai.' });
     }
 
     // [LANGKAH 2] Hapus Gambar (Bersih-bersih Storage)
@@ -208,7 +208,7 @@ exports.deletePost = async (req, res) => {
       supabase.from('notifikasi').delete().eq('id_postingan', idInt),
       // Tambahkan tabel lain jika ada, misal 'komentar'
     ]);
-    
+
     // [LANGKAH 4] Eksekusi Hapus Utama dengan Cek Count
     const { error: deleteError, count } = await supabase
       .from('postingan_barang')
@@ -219,7 +219,7 @@ exports.deletePost = async (req, res) => {
       console.error("[DELETE] Gagal DB:", deleteError.message);
       // Jika error foreign key, beri pesan jelas
       if (deleteError.code === '23503') {
-         return res.status(400).json({ error: "Gagal hapus: Data ini masih dipakai di tabel lain." });
+        return res.status(400).json({ error: "Gagal hapus: Data ini masih dipakai di tabel lain." });
       }
       throw deleteError;
     }
@@ -227,9 +227,9 @@ exports.deletePost = async (req, res) => {
     console.log(`[DELETE] Hasil eksekusi: ${count} baris terhapus.`);
 
     if (count === 0) {
-        // Ini kuncinya! Query sukses tapi 0 terhapus
-        console.error("[DELETE] ANOMALI: Query sukses tapi data tidak terhapus!");
-        return res.status(500).json({ error: "Server menolak menghapus data ini (Cek RLS/Permission)." });
+      // Ini kuncinya! Query sukses tapi 0 terhapus
+      console.error("[DELETE] ANOMALI: Query sukses tapi data tidak terhapus!");
+      return res.status(500).json({ error: "Server menolak menghapus data ini (Cek RLS/Permission)." });
     }
 
     // Sukses beneran
@@ -273,8 +273,8 @@ exports.getStats = async (req, res) => {
       .eq('status_postingan', 'pending_admin');
 
     // Kirim response lengkap
-    res.json({ 
-      total_users: userCount || 0, 
+    res.json({
+      total_users: userCount || 0,
       total_posts: postCount || 0,
       lost_items: lostCount || 0,
       found_items: foundCount || 0,
@@ -350,8 +350,8 @@ exports.approvePost = async (req, res) => {
     }
 
     if (post.status_postingan !== 'pending_admin') {
-      return res.status(400).json({ 
-        error: `Postingan tidak dalam status pending. Status saat ini: ${post.status_postingan}` 
+      return res.status(400).json({
+        error: `Postingan tidak dalam status pending. Status saat ini: ${post.status_postingan}`
       });
     }
 
@@ -390,8 +390,8 @@ exports.rejectPost = async (req, res) => {
 
   // Validasi alasan
   if (!alasan || alasan.trim().length < 10) {
-    return res.status(400).json({ 
-      error: 'Alasan penolakan wajib diisi (minimal 10 karakter)' 
+    return res.status(400).json({
+      error: 'Alasan penolakan wajib diisi (minimal 10 karakter)'
     });
   }
 
@@ -408,17 +408,17 @@ exports.rejectPost = async (req, res) => {
     }
 
     if (post.status_postingan !== 'pending_admin') {
-      return res.status(400).json({ 
-        error: `Postingan tidak dalam status pending. Status saat ini: ${post.status_postingan}` 
+      return res.status(400).json({
+        error: `Postingan tidak dalam status pending. Status saat ini: ${post.status_postingan}`
       });
     }
 
     // 2. Update status menjadi 'ditolak_admin'
     const { error: updateError } = await supabase
       .from('postingan_barang')
-      .update({ 
+      .update({
         status_postingan: 'ditolak_admin',
-        alasan_penolakan: alasan 
+        alasan_penolakan: alasan
       })
       .eq('id_postingan', idInt);
 

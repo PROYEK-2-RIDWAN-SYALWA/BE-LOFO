@@ -1,4 +1,4 @@
-const supabase = require('../config/supabaseClient');
+const { supabase } = require('../config/supabaseClient');
 
 // Helper untuk mengambil detail spesifik berdasarkan role
 const getSpecificProfile = async (id_pengguna, id_role) => {
