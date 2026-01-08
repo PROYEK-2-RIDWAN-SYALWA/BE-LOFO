@@ -40,6 +40,8 @@ exports.getMonitoringPosts = async (req, res) => {
           id_klaim,
           status_klaim:tindakan_validasi, 
           tgl_klaim,
+          file_bukti,
+          catatan_validasi,
           pengklaim:akun_pengguna!id_pemilik (
             nama_lengkap
           )
