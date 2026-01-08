@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
+const adminMonitoringController = require('../controllers/adminMonitoringController');
 const { verifyToken, verifyAdmin } = require('../middleware/authMiddleware'); // Import destructuring
 
 // SEMUA ROUTE DISINI DILINDUNGI GANDA:
@@ -41,5 +42,10 @@ router.put('/posts/:id_postingan/reject', verifyToken, verifyAdmin, adminControl
 
 // DELETE /api/admin/posts/:id_postingan - Hapus postingan (Moderasi)
 router.delete('/posts/:id_postingan', verifyToken, verifyAdmin, adminController.deletePost);
+
+// ===================================================================
+// Monitoring Postingan (READ ONLY)
+// ===================================================================
+router.get('/monitoring/posts', verifyToken, verifyAdmin, adminMonitoringController.getMonitoringPosts);
 
 module.exports = router;
